@@ -1152,10 +1152,11 @@ class AdbClient {
       'settings put system system_locales ' + locale,
       // 时区：中文环境固定上海；其它语言用 Windows 的时区（IANA 名，例如 Europe/Moscow）
       ...(() => {
-        if (/^zh[-_]/i.test(locale)) return ['setprop persist.sys.timezone Asia/Shanghai'];
+        // setprop persist.sys.timezone 在 shell 里会被 SELinux 拒绝；cmd alarm set-timezone 才真正生效
+        if (/^zh[-_]/i.test(locale)) return ['cmd alarm set-timezone Asia/Shanghai'];
         let tz = '';
         try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) { /* ignore */ }
-        return /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+$/.test(tz) ? ['setprop persist.sys.timezone ' + tz] : [];
+        return /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+$/.test(tz) ? ['cmd alarm set-timezone ' + tz] : [];
       })(),
       // 24 小时制 + 中文常见的日期格式
       'settings put system time_12_24 24',

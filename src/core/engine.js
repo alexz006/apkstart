@@ -708,10 +708,20 @@ class Runtime {
     const path = require('path');
     const want = String(locale || 'zh-CN');
     if (want === 'off' || want === 'en-US') return;
-    // 已经生效（system_locales 是目标语言，或语言列表里第一项是它）
-    const cur = await client.shell('settings get system system_locales', { timeout: 8000 }).catch(() => '');
-    const s = String(cur).trim();
-    if (s === want || s.indexOf(want) === 0 || (/^zh[-_]/.test(want) && /^zh[-_]/.test(s))) return;
+    // 已经生效：看 framework 实际在用的语言（am get-config），不看 system_locales ——
+    // 上面 ensureChineseLocale 刚写过 system_locales，按它判断永远「已生效」，冷启动就永远不会来。
+    const cfg = await client.shell('am get-config', { timeout: 8000 }).catch(() => '');
+    const m = /config:\s*([a-z]{2,3})(?:-r([A-Z]{2}))?/.exec(String(cfg));
+    const [wantLang, wantRegion] = want.split(/[-_]/);
+    let s;
+    if (m) {
+      s = m[2] ? `${m[1]}-${m[2]}` : m[1];
+      if (m[1] === wantLang && (!wantRegion || !m[2] || m[2] === wantRegion)) return;
+    } else {
+      const cur = await client.shell('settings get system system_locales', { timeout: 8000 }).catch(() => '');
+      s = String(cur).trim();
+      if (s === want || s.indexOf(want) === 0 || (/^zh[-_]/.test(want) && /^zh[-_]/.test(s))) return;
+    }
     const marker = path.join(store.DATA_DIR, 'locale-' + want.replace(/[^a-zA-Z0-9_-]/g, '_') + '.done');
     if (fs.existsSync(marker)) return;
     try {

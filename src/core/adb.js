@@ -1150,8 +1150,13 @@ class AdbClient {
   async ensureChineseLocale(locale = 'zh-CN') {
     const cmds = [
       'settings put system system_locales ' + locale,
-      // 时区只给中文环境固定成上海；其它语言沿用模拟器从主机继承的时区
-      ...(/^zh[-_]/i.test(locale) ? ['setprop persist.sys.timezone Asia/Shanghai'] : []),
+      // 时区：中文环境固定上海；其它语言用 Windows 的时区（IANA 名，例如 Europe/Moscow）
+      ...(() => {
+        if (/^zh[-_]/i.test(locale)) return ['setprop persist.sys.timezone Asia/Shanghai'];
+        let tz = '';
+        try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) { /* ignore */ }
+        return /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)+$/.test(tz) ? ['setprop persist.sys.timezone ' + tz] : [];
+      })(),
       // 24 小时制 + 中文常见的日期格式
       'settings put system time_12_24 24',
     ];

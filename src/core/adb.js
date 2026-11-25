@@ -1150,7 +1150,8 @@ class AdbClient {
   async ensureChineseLocale(locale = 'zh-CN') {
     const cmds = [
       'settings put system system_locales ' + locale,
-      'setprop persist.sys.timezone Asia/Shanghai',
+      // 时区只给中文环境固定成上海；其它语言沿用模拟器从主机继承的时区
+      ...(/^zh[-_]/i.test(locale) ? ['setprop persist.sys.timezone Asia/Shanghai'] : []),
       // 24 小时制 + 中文常见的日期格式
       'settings put system time_12_24 24',
     ];

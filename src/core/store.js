@@ -86,7 +86,7 @@ const DEFAULT_SETTINGS = {
     // VPN / 公司网 / 某些运营商下解析会拖到几百毫秒，视频类应用首屏会明显发卡。
     fastDns: true,
     // 网络加速使用的 DNS：cn（阿里 / 腾讯，默认）| cloudflare | google，见 emulator.js DNS_PRESETS。
-    dnsServers: 'cn',
+    dnsServers: 'cloudflare',
     // 系统语言：开机时由 emulator -prop 注入（guest 里 setprop 会被 SELinux 拒绝）。
     // 默认简体中文。设成 en-US 或 off 就回到镜像原生英文。
     locale: 'zh-CN',
@@ -282,7 +282,7 @@ const store = {
      * 非法值一律回落到中文，避免手改配置把界面搞成空白。
      */
     if (existing.uiLanguage === undefined) {
-      s.uiLanguage = fs.existsSync(SETTINGS_FILE) ? 'zh' : 'auto';
+      s.uiLanguage = 'auto';
     } else if (!['auto', 'zh', 'en', 'ru'].includes(s.uiLanguage)) {
       s.uiLanguage = 'zh';
     }

@@ -86,14 +86,14 @@ const DEFAULT_SETTINGS = {
     // VPN / 公司网 / 某些运营商下解析会拖到几百毫秒，视频类应用首屏会明显发卡。
     fastDns: true,
     // 网络加速使用的 DNS：cn（阿里 / 腾讯，默认）| cloudflare | google，见 emulator.js DNS_PRESETS。
-    dnsServers: 'cloudflare',
+    dnsServers: 'cn',
     // 系统语言：开机时由 emulator -prop 注入（guest 里 setprop 会被 SELinux 拒绝）。
     // 默认简体中文。设成 en-US 或 off 就回到镜像原生英文。
-    locale: 'ru-RU',
+    locale: 'zh-CN',
     // 中文输入法：随包带 AOSP 谷歌拼音输入法，开机后静默安装并启用。
     // 系统镜像只带 LatinIME（英文键盘），不装就打不了中文。
-    chineseIme: false,
-    chineseImeDefault: false,
+    chineseIme: true,
+    chineseImeDefault: true,
     // 快照：quickboot 内存快照让二次启动只要几秒，代价是磁盘上多一份约 2~3GB 的
     // ram.bin。磁盘紧张时可以关掉（只影响启动速度，不影响应用数据）。
     keepSnapshot: true,
@@ -236,6 +236,29 @@ function writeJson(file, data) {
   fs.renameSync(tmp, file);
 }
 
+/**
+ * 补丁的默认值按 Windows 语言选：俄语 / 中文 / 其它（英文）。
+ * 中文保持原版行为；其它语言关闭中文输入法和网络加速。
+ */
+const LANG_DEFAULTS = {
+  ru: { locale: 'ru-RU', chineseIme: false, chineseImeDefault: false, fastDns: false, dnsServers: 'cloudflare' },
+  zh: { locale: 'zh-CN', chineseIme: true, chineseImeDefault: true, fastDns: true, dnsServers: 'cn' },
+  en: { locale: 'en-US', chineseIme: false, chineseImeDefault: false, fastDns: false, dnsServers: 'cloudflare' },
+};
+
+function systemLang() {
+  let list = [];
+  try {
+    const { app } = require('electron');
+    if (app && app.getPreferredSystemLanguages) list = app.getPreferredSystemLanguages();
+  } catch (_) { /* 不在 Electron 里（测试） */ }
+  if (!list || !list.length) {
+    try { list = [Intl.DateTimeFormat().resolvedOptions().locale]; } catch (_) { list = []; }
+  }
+  // resolveLanguage 也认 APKSTART_LANG / --lang，便于测试
+  return require('./i18n').resolveLanguage('auto', list);
+}
+
 function deepMerge(base, patch) {
   const out = { ...base };
   for (const [k, v] of Object.entries(patch || {})) {
@@ -281,6 +304,16 @@ const store = {
      * 中文界面；全新安装（没有 settings.json）才默认 auto，按系统语言选。
      * 非法值一律回落到中文，避免手改配置把界面搞成空白。
      */
+    /**
+     * 补丁第一次读设置（新用户，或之前用过原版 0.6.4 的老用户）：按 Windows 语言
+     * 设一次系统语言、中文输入法、网络加速，并写盘；之后用户自己改的值不再动。
+     */
+    if (existing.langDefaults === undefined) {
+      s.engine = { ...s.engine, ...(LANG_DEFAULTS[systemLang()] || LANG_DEFAULTS.en) };
+      s.langDefaults = 1;
+      if (existing.uiLanguage === undefined) s.uiLanguage = 'auto';
+      try { writeJson(SETTINGS_FILE, s); } catch (_) { /* 写不进去下次再试 */ }
+    }
     if (existing.uiLanguage === undefined) {
       s.uiLanguage = 'auto';
     } else if (!['auto', 'zh', 'en', 'ru'].includes(s.uiLanguage)) {
